@@ -103,4 +103,5 @@ DVC_REMOTE_ACCESS_KEY_ID: Access Key ID для удаленного хранил
 
 DVC_REMOTE_SECRET_ACCESS_KEY: Secret Access Key для удаленного хранилища.
 
-Добавьте логирование в CI/CD, чтобы отслеживать выполнение каждого шага.
+Логирование в CI/CD.
+
