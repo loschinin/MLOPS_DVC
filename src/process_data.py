@@ -59,18 +59,6 @@ def main():
     torch.save(val_dataset, val_dataset_path)
     print("Data processing completed. Processed data saved to data/processed.")
 
-    # Использование DataLoader с num_workers=0 (для macOS)
-    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_dataset, batch_size=16, num_workers=0)
-
-    # Проверка доступности ресурсов
-    device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
-    print(f"Using device: {device}")
-
-    # Загрузка предобученной модели BERT
-    model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=len(label_encoder.classes_))
-    model.to(device)
-
 
 
 if __name__ == '__main__':

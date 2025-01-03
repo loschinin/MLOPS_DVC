@@ -5,14 +5,14 @@ stages:
     deps:
     - path: data/raw/train.csv
       hash: md5
-      md5: b99a90518e0ec15142cc5be667a45af6
-      size: 9191956
+      md5: dcc839b108ec84741132f95a89fc1d05
+      size: 4088343
     outs:
     - path: data/processed/train_dataset.pt
       hash: md5
-      md5: 79182444f5371907d4397feb15175361
-      size: 8496126
+      md5: 11adca7d9a3ff81f53a33abee313f3d3
+      size: 3742782
     - path: data/processed/val_dataset.pt
       hash: md5
-      md5: 73afbf65ac0db224504b5cd9898d2e24
-      size: 33983472
+      md5: 890d355dbd59b99367b115ff8fa52c32
+      size: 14967792
