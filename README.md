@@ -105,16 +105,11 @@ DVC_REMOTE_SECRET_ACCESS_KEY: Secret Access Key для удаленного хр
 
 Логирование в CI/CD.
 
-Проверить статус изменений:
-
-       dvc status
 
 ### Итоговый Flow:
 
 Допустим, решили обучить модель на измененных данных - исправили train.csv  
 -> запускаем пайплайн, чтобы выходные данные тоже изменились и были учтены в DVC
-
-        dvc repro
 
 1. dvc repro (пересоздание данных).
 
@@ -125,4 +120,9 @@ DVC_REMOTE_SECRET_ACCESS_KEY: Secret Access Key для удаленного хр
 4. git push (запуск CI/CD пайплайна).
 
 
+Hint:
+
+Проверить статус изменений:
+
+       dvc status
 
