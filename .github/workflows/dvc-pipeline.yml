@@ -34,20 +34,20 @@ jobs:
           dvc remote modify myremote access_key_id $DVC_REMOTE_ACCESS_KEY_ID
           dvc remote modify myremote secret_access_key $DVC_REMOTE_SECRET_ACCESS_KEY
 
-      # Шаг 5: Логирование информации о DVC
+      # Шаг 5: Загрузка данных из удаленного хранилища
+      - name: Pull data from remote storage
+        run: dvc pull
+
+      # Шаг 6: Запуск DVC пайплайна
+      - name: Run DVC pipeline
+        run: dvc repro
+
+      # Шаг 7: Загрузка данных в удаленное хранилище
+      - name: Push data to remote storage
+        run: dvc push
+
+        # Шаг 8: Логирование информации о DVC
       - name: Debug information
         run: |
           dvc remote list
           dvc status
-
-      # Шаг 6: Загрузка данных из удаленного хранилища
-      - name: Pull data from remote storage
-        run: dvc pull
-
-      # Шаг 7: Запуск DVC пайплайна
-      - name: Run DVC pipeline
-        run: dvc repro
-
-      # Шаг 8: Загрузка данных в удаленное хранилище
-      - name: Push data to remote storage
-        run: dvc push
