@@ -38,7 +38,6 @@ jobs:
       - name: Debug information
         run: |
           dvc remote list
-          dvc remote modify myremote --list
           dvc status
 
       # Шаг 6: Загрузка данных из удаленного хранилища
