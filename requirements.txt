@@ -5,3 +5,5 @@ pandas>=1.2.0
 torch
 torchvision
 torchaudio
+
+dvc-s3
