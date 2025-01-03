@@ -1,0 +1,47 @@
+name: DVC Pipeline
+on: [push]  # Запуск пайплайна при push в репозиторий
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest  # Используем Ubuntu для выполнения задач
+
+    steps:
+      # Шаг 1: Клонирование репозитория
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      # Шаг 2: Установка Python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'  # Указываем версию Python
+
+      # Шаг 3: Установка зависимостей
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install dvc
+
+      # Шаг 4: Настройка DVC remote
+      - name: Configure DVC remote
+        env:
+          DVC_REMOTE_ACCESS_KEY_ID: ${{ secrets.DVC_REMOTE_ACCESS_KEY_ID }}
+          DVC_REMOTE_SECRET_ACCESS_KEY: ${{ secrets.DVC_REMOTE_SECRET_ACCESS_KEY }}
+        run: |
+          dvc remote add -d myremote s3://mlops2train/data
+          dvc remote modify myremote endpointurl https://storage.yandexcloud.net
+          dvc remote modify myremote access_key_id $DVC_REMOTE_ACCESS_KEY_ID
+          dvc remote modify myremote secret_access_key $DVC_REMOTE_SECRET_ACCESS_KEY
+
+      # Шаг 5: Загрузка данных из удаленного хранилища
+      - name: Pull data from remote storage
+        run: dvc pull
+
+      # Шаг 6: Запуск DVC пайплайна
+      - name: Run DVC pipeline
+        run: dvc repro
+
+      # Шаг 7: Загрузка данных в удаленное хранилище (опционально)
+      - name: Push data to remote storage
+        run: dvc push

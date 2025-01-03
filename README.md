@@ -86,3 +86,18 @@ train_dataset.pt и val_dataset.pt:
 
 3 files pushed - 3 файла были загружены в удаленное хранилище DVC - данные, которые обработали и сохранили в файлах train_dataset.pt и val_dataset.pt, теперь синхронизированы с удаленным хранилищем. И другие участники проекта могут загрузить их с помощью команды dvc pull                         
 
+### Интеграция DVC в CI/CD:
+Настроим пайплайн в CI/CD, который будет автоматически запускать DVC-процесс.
+
+#### Создание файла CI/CD (GitHub Actions)
+
+.github/workflows/dvc-pipeline.yml
+
+#### Настройка секретов в GitHub
+
+Settings → Secrets and variables → Actions.
+
+DVC_REMOTE_ACCESS_KEY_ID: Access Key ID для удаленного хранилища.
+
+DVC_REMOTE_SECRET_ACCESS_KEY: Secret Access Key для удаленного хранилища.
+
