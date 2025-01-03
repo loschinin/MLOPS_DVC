@@ -1,0 +1,8 @@
+stages:
+  process_data:
+    cmd: python src/process_data.py
+    deps:
+      - data/raw/train.csv
+    outs:
+      - data/processed/train_dataset.pt
+      - data/processed/val_dataset.pt
