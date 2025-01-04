@@ -1,7 +1,7 @@
 import mlflow
 import mlflow.pytorch
 from transformers import DistilBertForSequenceClassification
-from torch.utils.data import DataLoader, TensorDataset, Subset
+from torch.utils.data import DataLoader, Subset
 import torch
 from sklearn.metrics import accuracy_score, f1_score
 import os
@@ -11,7 +11,7 @@ import numpy as np
 torch.set_num_threads(2)
 
 def main():
-    # Установите tracking_uri на адрес вашего MLflow-сервера
+    # tracking_uri на адрес MLflow-сервера
     mlflow.set_tracking_uri("http://127.0.0.1:5000")
 
     # Получение абсолютного пути к файлу
@@ -27,6 +27,12 @@ def main():
 
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Validation dataset size: {len(val_dataset)}")
+
+    # Проверка уникальных меток
+    train_labels = train_dataset.tensors[2]
+    val_labels = val_dataset.tensors[2]
+    print("Unique train labels:", torch.unique(train_labels))
+    print("Unique validation labels:", torch.unique(val_labels))
 
     # Используем CPU вместо MPS
     device = torch.device('cpu')
@@ -49,37 +55,43 @@ def main():
         f1 = f1_score(y_true, y_pred, average='weighted')
         return accuracy, f1
 
-    # Фиксированный learning rate
+    # Параметры экспериментов
+    experiments = [
+        {"batch_size": 8},  # Эксперимент 1
+        {"batch_size": 16},  # Эксперимент 2
+    ]
+
+    # Общие параметры
     learning_rate = 5e-5
+    epochs = 1  # Одна эпоха
+    data_subset = 0.05  # Фиксированное подмножество данных (5%)
 
-    # Эксперименты с разными batch sizes
-    batch_sizes = [16, 8]  # Уменьшенные значения batch size
+    # Создание подмножества данных (5%)
+    subset_size = int(len(train_dataset) * data_subset)
+    indices = np.random.choice(len(train_dataset), subset_size, replace=False)
+    train_subset = Subset(train_dataset, indices)
 
-    for batch_size in batch_sizes:
+    for exp_id, exp_params in enumerate(experiments):
         with mlflow.start_run():
+            print(f"Running Experiment {exp_id + 1} with params: {exp_params}")
+
             # Логирование параметров
-            mlflow.log_param("batch_size", batch_size)
+            mlflow.log_param("batch_size", exp_params["batch_size"])
+            mlflow.log_param("data_subset", data_subset)
             mlflow.log_param("learning_rate", learning_rate)
 
-            # Создание подмножества данных (5%)
-            subset_size = int(len(train_dataset) * 0.05)  # Используем 5% данных
-            indices = np.random.choice(len(train_dataset), subset_size, replace=False)
-            train_subset = Subset(train_dataset, indices)
+            # Использование DataLoader
+            train_loader = DataLoader(train_subset, batch_size=exp_params["batch_size"], shuffle=True, num_workers=0)
+            val_loader = DataLoader(val_dataset, batch_size=exp_params["batch_size"], num_workers=0)
 
-            # Использование DataLoader с текущим batch size
-            train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, num_workers=0)
-            val_loader = DataLoader(val_dataset, batch_size=batch_size, num_workers=0)
-
-            # Загрузка предобученной модели DistilBERT
-            model = DistilBertForSequenceClassification.from_pretrained('distilbert-base-uncased', num_labels=3)
+            # Загрузка предобученной модели DistilBERT с 6 классами
+            model = DistilBertForSequenceClassification.from_pretrained('distilbert-base-uncased', num_labels=6)
             model.to(device)
 
-            # Оптимизатор и планировщик
+            # Оптимизатор
             optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-            scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
 
             # Обучение модели
-            epochs = 1
             for epoch in range(epochs):
                 model.train()
                 total_loss = 0
@@ -97,15 +109,12 @@ def main():
 
                     total_loss += loss.item()
 
-                    # Логирование loss каждые 50 шагов
-                    if (i + 1) % 50 == 0:
-                        mlflow.log_metric("loss", total_loss / (i + 1), step=epoch * len(train_loader) + i)
-
-                # Оценка на валидационной выборке после эпохи
+                # Оценка на валидационной выборке
                 val_accuracy, val_f1 = evaluate_model(model, val_loader, device)
-                print(f"Batch Size: {batch_size}, Epoch {epoch + 1}, Loss: {total_loss / len(train_loader):.4f}, Val Accuracy: {val_accuracy:.4f}, Val F1: {val_f1:.4f}")
+                print(f"Experiment {exp_id + 1}, Epoch {epoch + 1}, Loss: {total_loss / len(train_loader):.4f}, Val Accuracy: {val_accuracy:.4f}, Val F1: {val_f1:.4f}")
 
-                # Логирование метрик после эпохи
+                # Логирование метрик
+                mlflow.log_metric("loss", total_loss / len(train_loader), step=epoch)
                 mlflow.log_metric("val_accuracy", val_accuracy, step=epoch)
                 mlflow.log_metric("val_f1", val_f1, step=epoch)
 
@@ -121,10 +130,10 @@ def main():
                 model(
                     torch.tensor(input_example["input_ids"]).to(device),
                     torch.tensor(input_example["attention_mask"]).to(device)
-                ).logits.cpu().numpy().tolist()
+                ).logits.detach().cpu().numpy().tolist()  # Используем .detach() перед .numpy()
             )
 
-            # Сохранение модели с input_example и signature
+            # Сохранение модели
             mlflow.pytorch.log_model(model, "model", signature=signature, input_example=input_example)
 
 if __name__ == '__main__':
