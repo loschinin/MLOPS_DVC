@@ -8,7 +8,7 @@ from sklearn.preprocessing import LabelEncoder
 import os
 
 # Ограничение количества потоков CPU
-torch.set_num_threads(4)
+torch.set_num_threads(2)
 
 def main():
 
