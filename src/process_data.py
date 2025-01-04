@@ -1,131 +1,65 @@
-import mlflow
-import mlflow.pytorch
-from transformers import DistilBertForSequenceClassification
-from torch.utils.data import DataLoader, TensorDataset, Subset
+from transformers import BertTokenizer, BertForSequenceClassification
+from torch.utils.data import DataLoader, TensorDataset
 import torch
 from sklearn.metrics import accuracy_score, f1_score
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 import os
-import numpy as np
 
 # Ограничение количества потоков CPU
-torch.set_num_threads(2)
+torch.set_num_threads(4)
 
 def main():
-    # Установите tracking_uri на адрес вашего MLflow-сервера
-    mlflow.set_tracking_uri("http://127.0.0.1:5000")
 
     # Получение абсолютного пути к файлу
     current_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # Загрузка предобработанных данных
+    # Создание директории data/processed, если она не существует
     processed_dir = os.path.join(current_dir, '../data/processed')
+    os.makedirs(processed_dir, exist_ok=True)
+
+    # Загрузка данных
+    data_path = os.path.join(current_dir, '../data/raw/train.csv')
+    data = pd.read_csv(data_path)
+
+    # Проверка на пропущенные значения в столбце 'Text'
+    print(data['Text'].isnull().sum())
+
+    # Замена пропущенных значений на пустые строки
+    data['Text'] = data['Text'].fillna('')
+
+    # Извлечение текстов и меток
+    texts = data['Text'].values
+    labels = data['Sentiment'].values
+
+    # Преобразование меток в числовой формат
+    label_encoder = LabelEncoder()
+    labels = label_encoder.fit_transform(labels)
+
+    # Разделение данных на обучающую и валидационную выборки
+    X_train, X_val, y_train, y_val = train_test_split(texts, labels, test_size=0.8, random_state=42)
+
+    # Загрузка токенизатора BERT
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+    # Подготовка данных для BERT
+    def prepare_data(texts, labels, tokenizer, max_length=64):
+        inputs = tokenizer(texts.tolist(), return_tensors='pt', padding=True, truncation=True, max_length=max_length)
+        dataset = TensorDataset(inputs['input_ids'], inputs['attention_mask'], torch.tensor(labels))
+        return dataset
+
+    train_dataset = prepare_data(X_train, y_train, tokenizer)
+    val_dataset = prepare_data(X_val, y_val, tokenizer)
+
+    # Сохранение обработанных данных с использованием абсолютных путей
     train_dataset_path = os.path.join(processed_dir, 'train_dataset.pt')
     val_dataset_path = os.path.join(processed_dir, 'val_dataset.pt')
+    torch.save(train_dataset, train_dataset_path)
+    torch.save(val_dataset, val_dataset_path)
+    print("Data processing completed. Processed data saved to data/processed.")
 
-    train_dataset = torch.load(train_dataset_path, weights_only=False)
-    val_dataset = torch.load(val_dataset_path, weights_only=False)
 
-    print(f"Train dataset size: {len(train_dataset)}")
-    print(f"Validation dataset size: {len(val_dataset)}")
-
-    # Используем CPU вместо MPS
-    device = torch.device('cpu')
-    print(f"Using device: {device}")
-
-    # Функция оценки модели
-    def evaluate_model(model, data_loader, device):
-        model.eval()
-        y_pred, y_true = [], []
-        with torch.no_grad():
-            for batch in data_loader:
-                input_ids, attention_mask, labels = batch
-                input_ids = input_ids.to(device)
-                attention_mask = attention_mask.to(device)
-                outputs = model(input_ids, attention_mask=attention_mask)
-                logits = outputs.logits
-                y_pred.extend(torch.argmax(logits, dim=1).cpu().numpy())
-                y_true.extend(labels.cpu().numpy())
-        accuracy = accuracy_score(y_true, y_pred)
-        f1 = f1_score(y_true, y_pred, average='weighted')
-        return accuracy, f1
-
-    # Фиксированный learning rate
-    learning_rate = 5e-5
-
-    # Эксперименты с разными batch sizes
-    batch_sizes = [16, 8]  # Уменьшенные значения batch size
-
-    for batch_size in batch_sizes:
-        with mlflow.start_run():
-            # Логирование параметров
-            mlflow.log_param("batch_size", batch_size)
-            mlflow.log_param("learning_rate", learning_rate)
-
-            # Создание подмножества данных (5%)
-            subset_size = int(len(train_dataset) * 0.05)  # Используем 5% данных
-            indices = np.random.choice(len(train_dataset), subset_size, replace=False)
-            train_subset = Subset(train_dataset, indices)
-
-            # Использование DataLoader с текущим batch size
-            train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, num_workers=0)
-            val_loader = DataLoader(val_dataset, batch_size=batch_size, num_workers=0)
-
-            # Загрузка предобученной модели DistilBERT
-            model = DistilBertForSequenceClassification.from_pretrained('distilbert-base-uncased', num_labels=3)
-            model.to(device)
-
-            # Оптимизатор и планировщик
-            optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-            scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
-
-            # Обучение модели
-            epochs = 1
-            for epoch in range(epochs):
-                model.train()
-                total_loss = 0
-                for i, batch in enumerate(train_loader):
-                    optimizer.zero_grad()
-                    input_ids, attention_mask, labels = batch
-                    input_ids = input_ids.to(device)
-                    attention_mask = attention_mask.to(device)
-                    labels = labels.to(device)
-
-                    outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
-                    loss = outputs.loss
-                    loss.backward()
-                    optimizer.step()
-
-                    total_loss += loss.item()
-
-                    # Логирование loss каждые 50 шагов
-                    if (i + 1) % 50 == 0:
-                        mlflow.log_metric("loss", total_loss / (i + 1), step=epoch * len(train_loader) + i)
-
-                # Оценка на валидационной выборке после эпохи
-                val_accuracy, val_f1 = evaluate_model(model, val_loader, device)
-                print(f"Batch Size: {batch_size}, Epoch {epoch + 1}, Loss: {total_loss / len(train_loader):.4f}, Val Accuracy: {val_accuracy:.4f}, Val F1: {val_f1:.4f}")
-
-                # Логирование метрик после эпохи
-                mlflow.log_metric("val_accuracy", val_accuracy, step=epoch)
-                mlflow.log_metric("val_f1", val_f1, step=epoch)
-
-            # Пример входных данных
-            input_example = {
-                "input_ids": torch.tensor([[101, 2054, 2003, 1996, 2627, 102]]).to(device).cpu().numpy().tolist(),
-                "attention_mask": torch.tensor([[1, 1, 1, 1, 1, 1]]).to(device).cpu().numpy().tolist()
-            }
-
-            # Автоматическое определение сигнатуры
-            signature = mlflow.models.infer_signature(
-                input_example,
-                model(
-                    torch.tensor(input_example["input_ids"]).to(device),
-                    torch.tensor(input_example["attention_mask"]).to(device)
-                ).logits.cpu().numpy().tolist()
-            )
-
-            # Сохранение модели с input_example и signature
-            mlflow.pytorch.log_model(model, "model", signature=signature, input_example=input_example)
 
 if __name__ == '__main__':
     main()

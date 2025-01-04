@@ -47,9 +47,13 @@ if all(col in runs.columns for col in ["params.batch_size", "metrics.val_accurac
     plt.ylabel("Validation F1 Score")
     plt.title("F1 Score by Batch Size")
 
+    # Создание директории, если она не существует
+    import os
+    os.makedirs("visualization/batch_size", exist_ok=True)
+
     # Сохранение графиков
     plt.tight_layout()
-    plt.savefig("batch_size/visualization/metrics_comparison.png")
+    plt.savefig("visualization/batch_size/metrics_comparison.png")
     plt.show()
 else:
     print("Required columns are missing in the runs data.")
