@@ -248,8 +248,6 @@ ClearML results page: https://app.clear.ml/projects/f50cf6cdd6d041adac43821c14f2
 
 Каждый этап выполняется последовательно, причём следующий этап начинается только после успешного завершения предыдущего, что обеспечивается через проверку статуса задачи и ожидание.
 
-![pipeline_result.png](visualization%2Fclearml-screens%2Fpipeline_result.png)
-
 ### 3. Сравнение моделей
 
 #### Отчет по сравнению экспериментов
